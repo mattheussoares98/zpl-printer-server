@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.WindowsServices;
+
 
 namespace BinaryKits.Zpl.Viewer.WebApi
 {
@@ -11,9 +13,9 @@ namespace BinaryKits.Zpl.Viewer.WebApi
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .ConfigureWebHostDefaults(webBuilder =>
-                {
+   Host.CreateDefaultBuilder(args)
+                .UseWindowsService()
+                .ConfigureWebHostDefaults(webBuilder => {
                     webBuilder.UseStartup<Startup>();
                 });
     }

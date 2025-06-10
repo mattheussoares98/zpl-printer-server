@@ -5,6 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using BinaryKits.Zpl.Viewer;
+using BinaryKits.Zpl.Viewer.ElementDrawers;
+using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
 
 namespace BinaryKits.Zpl.Viewer.WebApi.Controllers
 {
@@ -24,7 +28,39 @@ namespace BinaryKits.Zpl.Viewer.WebApi.Controllers
         {
             try
             {
-                return RenderZpl(request);
+                // 1) storage & options
+                IPrinterStorage printerStorage = new PrinterStorage();
+                var drawerOptions = new DrawerOptions { PdfOutput = true };  // if you want PDF mode
+
+                // 2) initialize drawer & analyzer
+                var drawer = new ZplElementDrawer(printerStorage, drawerOptions);
+                var analyzer = new ZplAnalyzer(printerStorage);
+
+                // 3) parse your raw ZPL
+                var analyzeInfo = analyzer.Analyze(request.ZplData);
+
+                // 4) render & merge
+                var pdfPages = new List<byte[]>();
+                foreach (var labelInfo in analyzeInfo.LabelInfos)
+                {
+                    var pdf = drawer.DrawPdf(
+                        labelInfo.ZplElements,
+                        request.LabelWidth,
+                        request.LabelHeight,
+                        request.PrintDensityDpmm
+                    );
+                    pdfPages.Add(pdf);
+                }
+
+                var merged = PdfMerger.Merge(pdfPages);
+                var response = new RenderResponseDto
+                {
+                    Labels = System.Array.Empty<RenderLabelDto>(),
+                    Pdfs = new[] { new RenderLabelDto { PdfBase64 = Convert.ToBase64String(merged) } },
+                    NonSupportedCommands = analyzeInfo.UnknownCommands
+                };
+
+                return Ok(response);
             }
             catch (Exception ex)
             {
@@ -62,7 +98,7 @@ namespace BinaryKits.Zpl.Viewer.WebApi.Controllers
                     };
                     labels.Add(label);
                 }
-                
+
                 if (request.Type == "PDF")
                 {
                     var pdfData = drawer.DrawPdf(labelInfo.ZplElements, request.LabelWidth, request.LabelHeight, request.PrintDensityDpmm);
@@ -72,18 +108,18 @@ namespace BinaryKits.Zpl.Viewer.WebApi.Controllers
                     };
                     pdfs.Add(pdf);
                 }
-                
+
                 if (request.Type == "both")
                 {
                     var bothData = drawer.DrawMulti(labelInfo.ZplElements, request.LabelWidth, request.LabelHeight, request.PrintDensityDpmm);
-                    
+
                     var imageData = bothData[0];
                     var label = new RenderLabelDto
                     {
                         ImageBase64 = Convert.ToBase64String(imageData)
                     };
                     labels.Add(label);
-                    
+
                     var pdfData = bothData[1];
                     var pdf = new RenderLabelDto
                     {
